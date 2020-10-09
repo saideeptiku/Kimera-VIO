@@ -26,10 +26,10 @@ public:
     // TODO: get path from runner
 		, kimera_pipeline_params("/home/huzaifa2/all_scratch/components/KV-ILLIXR/params/ILLIXR")
 		//, kimera_pipeline_params("/home/huzaifa2/all_scratch/components/KV-ILLIXR/params/ILLIXR-ZED")
-		, kimera_pipeline(kimera_pipeline_params)
+		, kimera_pipeline(kimera_pipeline_params),
+    , _m_pose{sb->publish<pose_type>("slow_pose")}
+    , _m_imu_integrator_input{sb->publish<imu_integrator_input>("imu_integrator_input")}
 	{
-		_m_pose = sb->publish<pose_type>("slow_pose");
-		_m_imu_integrator_input = sb->publish<imu_integrator_input>("imu_integrator_input");
 		//_m_imu_integrator_input2 = sb->publish<imu_integrator_input2>("imu_integrator_input");
 		_m_begin = std::chrono::system_clock::now();
 		imu_cam_buffer = NULL;
