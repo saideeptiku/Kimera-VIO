@@ -7,10 +7,12 @@
 #include <math.h>
 #include <eigen3/Eigen/Dense>
 
-#include "common/plugin.hpp"
-#include "common/switchboard.hpp"
-#include "common/data_format.hpp"
-#include "common/phonebook.hpp"
+#include "kimera-vio/pipeline/Pipeline.h"
+
+#include "../common/plugin.hpp"
+#include "../common/switchboard.hpp"
+#include "../common/data_format.hpp"
+#include "../common/phonebook.hpp"
 
 using namespace ILLIXR;
 
@@ -21,13 +23,34 @@ public:
 		: plugin{name_, pb_}
 		, sb{pb->lookup_impl<switchboard>()}
 		, kimera_current_frame_id(0)
-		, kimera_pipeline_params("../params/ILLIXR")
+    // TODO: get path from runner
+		, kimera_pipeline_params("/home/huzaifa2/all_scratch/components/KV-ILLIXR/params/ILLIXR")
+		//, kimera_pipeline_params("/home/huzaifa2/all_scratch/components/KV-ILLIXR/params/ILLIXR-ZED")
 		, kimera_pipeline(kimera_pipeline_params)
 	{
 		_m_pose = sb->publish<pose_type>("slow_pose");
-		_m_imu_raw = sb->publish<imu_raw_type>("imu_raw");
+		_m_imu_integrator_input = sb->publish<imu_integrator_input>("imu_integrator_input");
+		//_m_imu_integrator_input2 = sb->publish<imu_integrator_input2>("imu_integrator_input");
 		_m_begin = std::chrono::system_clock::now();
 		imu_cam_buffer = NULL;
+    
+    // TODO: read flag file path from runner and find a better way of passing it to gflag
+    //int argc = 2;
+    //char **argv;
+    //char *argv0 = "IGNORE";
+    //char *argv1 = "--flagfile=/home/huzaifa2/all_scratch/components/KV-ILLIXR/params/ILLIXR/flags/stereoVIOEuroc.flags";
+    //argv[0] = argv0;
+    //argv[1] = argv1;
+    //char *argv[] = {"IGNORE", "--flagfile=/home/huzaifa2/all_scratch/components/KV-ILLIXR/params/ILLIXR/flags/stereoVIOEuroc.flags"};
+    //google::ParseCommandLineFlags(&argc, &argv, true);
+
+    kimera_pipeline.registerBackendOutputCallback(
+      std::bind(
+        &kimera_vio::pose_callback,
+        this,
+        std::placeholders::_1
+      )
+    );
 
 		_m_pose->put(
 			new pose_type{
@@ -64,38 +87,20 @@ public:
 		// make sure that your data folder matches the name in offline_imu_cam/plugin.cc
 		assert(datum->dataset_time > previous_timestamp);
 		previous_timestamp = datum->dataset_time;
+
+		imu_cam_buffer = datum;
+
 		VIO::Vector6 imu_raw_vals;
-		imu_raw_vals << datum->la, datum->angular_v;
+		imu_raw_vals << datum->linear_a.cast<double>(), datum->angular_v.cast<double>();
 
 		// Feed the IMU measurement. There should always be IMU data in each call to feed_imu_cam
 		assert((datum->img0.has_value() && datum->img1.has_value()) || (!datum->img0.has_value() && !datum->img1.has_value()));
-
-		kimera_pipeline->fillSingleImuQueue(VIO::ImuMeasurement(datum->dataset_time, imu_raw_vals));
-		if (open_vins_estimator.initialized()) {
-			Eigen::Matrix<double,13,1> state_plus = Eigen::Matrix<double,13,1>::Zero();
-			imu_raw_type *imu_raw_data = new imu_raw_type {
-				Eigen::Matrix<double, 3, 1>::Zero(), 
-				Eigen::Matrix<double, 3, 1>::Zero(), 
-				Eigen::Matrix<double, 3, 1>::Zero(), 
-				Eigen::Matrix<double, 3, 1>::Zero(),
-				Eigen::Matrix<double, 13, 1>::Zero(),
-				// Record the timestamp (in ILLIXR time) associated with this imu sample.
-				// Used for MTP calculations.
-				datum->time
-			};
-			// TODO: Remove this and figure out where to get IMU biases from kimera.
-        	// open_vins_estimator.get_propagator()->fast_state_propagate(state, timestamp_in_seconds, state_plus, imu_raw_data);
-
-			_m_imu_raw->put(imu_raw_data);
-		}
+		kimera_pipeline.fillSingleImuQueue(VIO::ImuMeasurement(datum->dataset_time, imu_raw_vals));
 
 		// If there is not cam data this func call, break early
 		if (!datum->img0.has_value() && !datum->img1.has_value()) {
-			kimera_pipeline.spin();
-			return;
-		} else if (imu_cam_buffer == NULL) {
-			imu_cam_buffer = datum;
-			kimera_pipeline.spin();
+			//kimera_pipeline.spin();
+      //std::cout << "SPIN IMU\n";
 			return;
 		}
 
@@ -113,65 +118,117 @@ public:
 		cv::Mat img1{*imu_cam_buffer->img1.value()};
 		cv::cvtColor(img0, img0, cv::COLOR_BGR2GRAY);
 		cv::cvtColor(img1, img1, cv::COLOR_BGR2GRAY);
-		double buffer_timestamp_seconds = double(imu_cam_buffer->dataset_time) / NANO_SEC;
 		// VIOParams
 		VIO::CameraParams left_cam_info = kimera_pipeline_params.camera_params_.at(0);
 		VIO::CameraParams right_cam_info = kimera_pipeline_params.camera_params_.at(1);
-		kimera_pipeline->fillLeftFrameQueue(VIO::make_unique<Frame>(kimera_current_frame_id_,
+		kimera_pipeline.fillLeftFrameQueue(VIO::make_unique<VIO::Frame>(kimera_current_frame_id,
 																	datum->dataset_time,
 																	left_cam_info, img0));
-		kimera_pipeline->fillRightFrameQueue(VIO::make_unique<Frame>(kimera_current_frame_id_,
-																	 datum->dataset_time,
-																	 right_cam_info, img1));
+		kimera_pipeline.fillRightFrameQueue(VIO::make_unique<VIO::Frame>(kimera_current_frame_id,
+																	datum->dataset_time,
+																	right_cam_info, img1));
 
 		kimera_pipeline.spin();
+    std::cout << "SPIN FULL\n";
+	}
+
+  void pose_callback(const std::shared_ptr<VIO::BackendOutput>& vio_output) {
+    std::cout << "We're in business!" << std::endl;
+    std::cout << "########################################################################\n";
+
+    const auto& cached_state = vio_output->W_State_Blkf_;
+    const auto& w_pose_blkf_trans = cached_state.pose_.translation().transpose();
+    const auto& w_pose_blkf_rot = cached_state.pose_.rotation().quaternion();
+    const auto& w_vel_blkf = cached_state.velocity_.transpose();
+    const auto& imu_bias_gyro = cached_state.imu_bias_.gyroscope().transpose();
+    const auto& imu_bias_acc = cached_state.imu_bias_.accelerometer().transpose();
+    std::cout     << cached_state.timestamp_ << ","  //
+                  << "\n"
+                  << "px = " << w_pose_blkf_trans.x() << ","    //
+                  << "py = " << w_pose_blkf_trans.y() << ","    //
+                  << "pz = " << w_pose_blkf_trans.z() << ","    //
+                  << "\n"
+                  << "qw = " << w_pose_blkf_rot(0) << ","       // q_w
+                  << "qx = " << w_pose_blkf_rot(1) << ","       // q_x
+                  << "qy = " << w_pose_blkf_rot(2) << ","       // q_y
+                  << "qz = " << w_pose_blkf_rot(3) << ","       // q_z
+                  << "\n"
+                  << w_vel_blkf(0) << ","            //
+                  << w_vel_blkf(1) << ","            //
+                  << w_vel_blkf(2) << ","            //
+                  << "\n"
+                  << "bgx = " << imu_bias_gyro(0) << "\n"         //
+                  << "bgy = " << imu_bias_gyro(1) << "\n"         //
+                  << "bgz = " << imu_bias_gyro(2) << "\n"         //
+                  << "\n"
+                  << "bax = " << imu_bias_acc(0) << "\n"          //
+                  << "bay = " << imu_bias_acc(1) << "\n"          //
+                  << "baz = " << imu_bias_acc(2) << "\n"          //
+                  << std::endl;
 
 		// Get the pose returned from SLAM
-		state = open_vins_estimator.get_state();
-		Eigen::Vector4d quat = state->_imu->quat();
-		Eigen::Vector3d pose = state->_imu->pos();
+		Eigen::Quaternionf quat = Eigen::Quaternionf{w_pose_blkf_rot(0), w_pose_blkf_rot(1), w_pose_blkf_rot(2), w_pose_blkf_rot(3)};
+		//Eigen::Quaternionf quat = Eigen::Quaternionf{w_pose_blkf_rot(3), w_pose_blkf_rot(0), w_pose_blkf_rot(1), w_pose_blkf_rot(2)};
+		Eigen::Vector3f pos  = w_pose_blkf_trans.cast<float>();
 
-		Eigen::Vector3f swapped_pos = Eigen::Vector3f{float(pose(0)), float(pose(1)), float(pose(2))};
-		Eigen::Quaternionf swapped_rot = Eigen::Quaternionf{float(quat(3)), float(quat(0)), float(quat(1)), float(quat(2))};
+    assert(isfinite(quat.w()));
+    assert(isfinite(quat.x()));
+    assert(isfinite(quat.y()));
+    assert(isfinite(quat.z()));
+    assert(isfinite(pos[0]));
+    assert(isfinite(pos[1]));
+    assert(isfinite(pos[2]));
 
-       	assert(isfinite(swapped_rot.w()));
-        assert(isfinite(swapped_rot.x()));
-        assert(isfinite(swapped_rot.y()));
-        assert(isfinite(swapped_rot.z()));
-        assert(isfinite(swapped_pos[0]));
-        assert(isfinite(swapped_pos[1]));
-        assert(isfinite(swapped_pos[2]));
+    _m_pose->put(new pose_type{
+      .sensor_time = imu_cam_buffer->time,
+      .position = pos,
+      .orientation = quat,
+    });
 
-		if (open_vins_estimator.initialized()) {
-			if (isUninitialized) {
-				isUninitialized = false;
-			}
+    Eigen::Matrix<double, 16, 1> imu_value;
+    imu_value.block(0, 0, 4, 1) = Eigen::Vector4d{w_pose_blkf_rot(3), w_pose_blkf_rot(0), w_pose_blkf_rot(1), w_pose_blkf_rot(2)};
+    imu_value.block(4, 0, 3, 1) = Eigen::Vector3d{w_pose_blkf_trans(0), w_pose_blkf_trans(1), w_pose_blkf_trans(2)};
+    imu_value.block(7, 0, 3, 1) = Eigen::Vector3d{w_vel_blkf(0), w_vel_blkf(1), w_vel_blkf(2)};
+    imu_value.block(10,0, 3, 1) = Eigen::Vector3d{imu_bias_gyro(0), imu_bias_gyro(1), imu_bias_gyro(2)};
+    imu_value.block(13,0, 3, 1) = Eigen::Vector3d{imu_bias_acc(0), imu_bias_acc(1), imu_bias_acc(2)};
+    Eigen::Matrix<double, 16, 1> imu_fej = imu_value;
 
-			_m_pose->put(new pose_type{
-				.sensor_time = imu_cam_buffer->time,
-				.position = swapped_pos,
-				.orientation = swapped_rot,
-			});
-		}
+    _m_imu_integrator_input->put(new imu_integrator_input {
+      .slam_ready = true,
+      .t_offset = -0.05,
+      .last_cam_integration_time = (double(imu_cam_buffer->dataset_time) / NANO_SEC),
+      .imu_value = imu_value,
+      .imu_fej = imu_fej,
+      .gravity = Eigen::Vector3d{0.0, 0.0, 9.81}, // positive gravity in OV integrator
+    });
 
-		// I know, a priori, nobody other plugins subscribe to this topic
-		// Therefore, I can const the cast away, and delete stuff
-		// This fixes a memory leak.
-		// -- Sam at time t1
-		// Turns out, this is no longer correct. debbugview uses it
-		// const_cast<imu_cam_type*>(imu_cam_buffer)->img0.reset();
-		// const_cast<imu_cam_type*>(imu_cam_buffer)->img1.reset();
-		imu_cam_buffer = datum;
-	}
+    // TODO: get constants from vio_params
+    //_m_imu_integrator_input2->put(new imu_integrator_input2 {
+    //  .slam_ready = true,
+    //  .last_cam_integration_time = (double(imu_cam_buffer->dataset_time) / NANO_SEC), // TODO: double check
+    //  .gyro_noise = 1.6968e-04,
+    //  .acc_noise = 2.0000e-3,
+    //  .imu_integration_sigma = 1.0e-8,
+    //  .acc_walk = 3.0000e-3,
+    //  .gyro_walk = 1.9393e-05,
+    //  .biasAcc = imu_bias_acc,
+    //  .biasGyro = imu_bias_gyro,
+    //  .gravity = Eigen::Vector3d{0.0, 0.0, -9.81}, // negative gravity in GTSAM integrator
+    //  .position = Eigen::Matrix<double,3,1>{w_pose_blkf_trans.x(), w_pose_blkf_trans.y(), w_pose_blkf_trans.z()},
+    //  .velocity = w_vel_blkf,
+    //  //.quat = quat.cast<double>()
+    //  .quat = Eigen::Quaterniond{w_pose_blkf_rot(0), w_pose_blkf_rot(1), w_pose_blkf_rot(2), w_pose_blkf_rot(3)}
+    //});
+  }
 
 	virtual ~kimera_vio() override {}
 
 private:
 	const std::shared_ptr<switchboard> sb;
 	std::unique_ptr<writer<pose_type>> _m_pose;
-	std::unique_ptr<writer<imu_raw_type>> _m_imu_raw;
+	std::unique_ptr<writer<imu_integrator_input>> _m_imu_integrator_input;
+	//std::unique_ptr<writer<imu_integrator_input2>> _m_imu_integrator_input2;
 	time_type _m_begin;
-	State *state;
 
 	VIO::FrameId kimera_current_frame_id;
 	VIO::VioParams kimera_pipeline_params;
@@ -179,7 +236,6 @@ private:
 	
 	const imu_cam_type* imu_cam_buffer;
 	double previous_timestamp = 0.0;
-	bool isUninitialized = true;
 };
 
 PLUGIN_MAIN(kimera_vio)
