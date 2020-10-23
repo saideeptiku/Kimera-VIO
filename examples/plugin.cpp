@@ -24,11 +24,11 @@ public:
 		, sb{pb->lookup_impl<switchboard>()}
 		, kimera_current_frame_id(0)
     // TODO: get path from runner
-		, kimera_pipeline_params("/home/huzaifa2/all_scratch/components/KV-ILLIXR/params/ILLIXR")
-		//, kimera_pipeline_params("/home/huzaifa2/all_scratch/components/KV-ILLIXR/params/ILLIXR-ZED")
+		, kimera_pipeline_params("/home/jeffrey/Research/ILLIXR/Kimera-VIO/params/ILLIXR")
+		//, kimera_pipeline_params("/home/jeffrey/Research/ILLIXR/Kimera-VIO/params/ILLIXR")
 		, kimera_pipeline(kimera_pipeline_params)
     , _m_pose{sb->publish<pose_type>("slow_pose")}
-    , _m_imu_integrator_input{sb->publish<imu_integrator_input>("imu_integrator_input")}
+    , _m_imu_integrator_input{sb->publish<imu_integrator_input2>("imu_integrator_input")}
 	{
 		//_m_imu_integrator_input2 = sb->publish<imu_integrator_input2>("imu_integrator_input");
 		_m_begin = std::chrono::system_clock::now();
@@ -105,10 +105,7 @@ public:
 		}
 
 #ifdef CV_HAS_METRICS
-		cv::metrics::setAccount(new std::string{std::to_string(iteration_no)});
-		iteration_no++;
-		if (iteration_no % 20 == 0) {
-			cv::metrics::dump();
+		cv::metrics::setAccount(new std::string{std::to_string(itew_pose_blkf_rot
 		}
 #else
 #warning "No OpenCV metrics available. Please recompile OpenCV from git clone --branch 3.4.6-instrumented https://github.com/ILLIXR/opencv/. (see install_deps.sh)"
@@ -133,8 +130,8 @@ public:
 	}
 
   void pose_callback(const std::shared_ptr<VIO::BackendOutput>& vio_output) {
-    std::cout << "We're in business!" << std::endl;
-    std::cout << "########################################################################\n";
+    // std::cout << "We're in business!" << std::endl;
+    // std::cout << "########################################################################\n";
 
     const auto& cached_state = vio_output->W_State_Blkf_;
     const auto& w_pose_blkf_trans = cached_state.pose_.translation().transpose();
@@ -142,33 +139,34 @@ public:
     const auto& w_vel_blkf = cached_state.velocity_.transpose();
     const auto& imu_bias_gyro = cached_state.imu_bias_.gyroscope().transpose();
     const auto& imu_bias_acc = cached_state.imu_bias_.accelerometer().transpose();
-    std::cout     << cached_state.timestamp_ << ","  //
-                  << "\n"
-                  << "px = " << w_pose_blkf_trans.x() << ","    //
-                  << "py = " << w_pose_blkf_trans.y() << ","    //
-                  << "pz = " << w_pose_blkf_trans.z() << ","    //
-                  << "\n"
-                  << "qw = " << w_pose_blkf_rot(0) << ","       // q_w
-                  << "qx = " << w_pose_blkf_rot(1) << ","       // q_x
-                  << "qy = " << w_pose_blkf_rot(2) << ","       // q_y
-                  << "qz = " << w_pose_blkf_rot(3) << ","       // q_z
-                  << "\n"
-                  << w_vel_blkf(0) << ","            //
-                  << w_vel_blkf(1) << ","            //
-                  << w_vel_blkf(2) << ","            //
-                  << "\n"
-                  << "bgx = " << imu_bias_gyro(0) << "\n"         //
-                  << "bgy = " << imu_bias_gyro(1) << "\n"         //
-                  << "bgz = " << imu_bias_gyro(2) << "\n"         //
-                  << "\n"
-                  << "bax = " << imu_bias_acc(0) << "\n"          //
-                  << "bay = " << imu_bias_acc(1) << "\n"          //
-                  << "baz = " << imu_bias_acc(2) << "\n"          //
-                  << std::endl;
+    // std::cout     << cached_state.timestamp_ << ","  //
+    //               << "\n"
+    //               << "px = " << w_pose_blkf_trans.x() << ","    //
+    //               << "py = " << w_pose_blkf_trans.y() << ","    //
+    //               << "pz = " << w_pose_blkf_trans.z() << ","    //
+    //               << "\n"
+    //               << "qw = " << w_pose_blkf_rot(0) << ","       // q_w
+    //               << "qx = " << w_pose_blkf_rot(1) << ","       // q_x
+    //               << "qy = " << w_pose_blkf_rot(2) << ","       // q_y
+    //               << "qz = " << w_pose_blkf_rot(3) << ","       // q_z
+    //               << "\n"
+    //               << w_vel_blkf(0) << ","            //
+    //               << w_vel_blkf(1) << ","            //
+    //               << w_vel_blkf(2) << ","            //
+    //               << "\n"
+    //               << "bgx = " << imu_bias_gyro(0) << "\n"         //
+    //               << "bgy = " << imu_bias_gyro(1) << "\n"         //
+    //               << "bgz = " << imu_bias_gyro(2) << "\n"         //
+    //               << "\n"
+    //               << "bax = " << imu_bias_acc(0) << "\n"          //
+    //               << "bay = " << imu_bias_acc(1) << "\n"          //
+    //               << "baz = " << imu_bias_acc(2) << "\n"          //
+    //               << std::endl;
 
 		// Get the pose returned from SLAM
 		Eigen::Quaternionf quat = Eigen::Quaternionf{w_pose_blkf_rot(0), w_pose_blkf_rot(1), w_pose_blkf_rot(2), w_pose_blkf_rot(3)};
-		//Eigen::Quaternionf quat = Eigen::Quaternionf{w_pose_blkf_rot(3), w_pose_blkf_rot(0), w_pose_blkf_rot(1), w_pose_blkf_rot(2)};
+    Eigen::Quaterniond doub_quat = Eigen::Quaterniond{w_pose_blkf_rot(0), w_pose_blkf_rot(1), w_pose_blkf_rot(2), w_pose_blkf_rot(3)};
+
 		Eigen::Vector3f pos  = w_pose_blkf_trans.cast<float>();
 
     assert(isfinite(quat.w()));
@@ -185,22 +183,26 @@ public:
       .orientation = quat,
     });
 
-    Eigen::Matrix<double, 16, 1> imu_value;
-    imu_value.block(0, 0, 4, 1) = Eigen::Vector4d{w_pose_blkf_rot(3), w_pose_blkf_rot(0), w_pose_blkf_rot(1), w_pose_blkf_rot(2)};
-    imu_value.block(4, 0, 3, 1) = Eigen::Vector3d{w_pose_blkf_trans(0), w_pose_blkf_trans(1), w_pose_blkf_trans(2)};
-    imu_value.block(7, 0, 3, 1) = Eigen::Vector3d{w_vel_blkf(0), w_vel_blkf(1), w_vel_blkf(2)};
-    imu_value.block(10,0, 3, 1) = Eigen::Vector3d{imu_bias_gyro(0), imu_bias_gyro(1), imu_bias_gyro(2)};
-    imu_value.block(13,0, 3, 1) = Eigen::Vector3d{imu_bias_acc(0), imu_bias_acc(1), imu_bias_acc(2)};
-    Eigen::Matrix<double, 16, 1> imu_fej = imu_value;
+    _m_imu_integrator_input->put(new imu_integrator_input2{
+				.last_cam_integration_time = (double(imu_cam_buffer->dataset_time) / NANO_SEC),
+				.t_offset = -0.05,
 
-    _m_imu_integrator_input->put(new imu_integrator_input {
-      .slam_ready = true,
-      .t_offset = -0.05,
-      .last_cam_integration_time = (double(imu_cam_buffer->dataset_time) / NANO_SEC),
-      .imu_value = imu_value,
-      .imu_fej = imu_fej,
-      .gravity = Eigen::Vector3d{0.0, 0.0, 9.81}, // positive gravity in OV integrator
-    });
+				.params = {
+					.gyro_noise = 0.00016968,
+					.acc_noise = 0.002,
+					.gyro_walk = 1.9393e-05,
+					.acc_walk = 0.003,
+					.n_gravity = Eigen::Matrix<double,3,1>(0.0, 0.0, -9.81),
+					.imu_integration_sigma = 1.0,
+					.nominal_rate = 200.0,
+				},
+
+				.biasAcc =imu_bias_acc,
+				.biasGyro = imu_bias_gyro,
+				.position = w_pose_blkf_trans,
+				.velocity = w_vel_blkf,
+				.quat = doub_quat,
+			});
 
     // TODO: get constants from vio_params
     //_m_imu_integrator_input2->put(new imu_integrator_input2 {
@@ -226,7 +228,7 @@ public:
 private:
 	const std::shared_ptr<switchboard> sb;
 	std::unique_ptr<writer<pose_type>> _m_pose;
-	std::unique_ptr<writer<imu_integrator_input>> _m_imu_integrator_input;
+	std::unique_ptr<writer<imu_integrator_input2>> _m_imu_integrator_input;
 	//std::unique_ptr<writer<imu_integrator_input2>> _m_imu_integrator_input2;
 	time_type _m_begin;
 
