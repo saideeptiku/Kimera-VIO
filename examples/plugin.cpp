@@ -32,15 +32,7 @@ public:
 		_m_begin = std::chrono::system_clock::now();
 		imu_cam_buffer = NULL;
     
-    // TODO: read flag file path from runner and find a better way of passing it to gflag
-    //int argc = 2;
-    //char **argv;
-    //char *argv0 = "IGNORE";
-    //char *argv1 = "--flagfile=/home/huzaifa2/all_scratch/components/KV-ILLIXR/params/ILLIXR/flags/stereoVIOEuroc.flags";
-    //argv[0] = argv0;
-    //argv[1] = argv1;
-    //char *argv[] = {"IGNORE", "--flagfile=/home/huzaifa2/all_scratch/components/KV-ILLIXR/params/ILLIXR/flags/stereoVIOEuroc.flags"};
-    //google::ParseCommandLineFlags(&argc, &argv, true);
+    // TODO: read Kimera flag file path from runner and find a better way of passing it to gflag
 
     kimera_pipeline.registerBackendOutputCallback(
       std::bind(
@@ -97,8 +89,6 @@ public:
 
 		// If there is not cam data this func call, break early
 		if (!datum->img0.has_value() && !datum->img1.has_value()) {
-			//kimera_pipeline.spin();
-      //std::cout << "SPIN IMU\n";
 			return;
 		}
 
@@ -128,8 +118,6 @@ public:
 	}
 
   	void pose_callback(const std::shared_ptr<VIO::BackendOutput>& vio_output) {
-		// std::cout << "We're in business!" << std::endl;
-		// std::cout << "########################################################################\n";
 
 		const auto& cached_state = vio_output->W_State_Blkf_;
 		const auto& w_pose_blkf_trans = cached_state.pose_.translation().transpose();
@@ -137,30 +125,6 @@ public:
 		const auto& w_vel_blkf = cached_state.velocity_.transpose();
 		const auto& imu_bias_gyro = cached_state.imu_bias_.gyroscope().transpose();
 		const auto& imu_bias_acc = cached_state.imu_bias_.accelerometer().transpose();
-		// std::cout     << cached_state.timestamp_ << ","  //
-		//               << "\n"
-		//               << "px = " << w_pose_blkf_trans.x() << ","    //
-		//               << "py = " << w_pose_blkf_trans.y() << ","    //
-		//               << "pz = " << w_pose_blkf_trans.z() << ","    //
-		//               << "\n"
-		//               << "qw = " << w_pose_blkf_rot(0) << ","       // q_w
-		//               << "qx = " << w_pose_blkf_rot(1) << ","       // q_x
-		//               << "qy = " << w_pose_blkf_rot(2) << ","       // q_y
-		//               << "qz = " << w_pose_blkf_rot(3) << ","       // q_z
-		//               << "\n"
-		//               << w_vel_blkf(0) << ","            //
-		//               << w_vel_blkf(1) << ","            //
-		//               << w_vel_blkf(2) << ","            //
-		//               << "\n"
-		//               << "bgx = " << imu_bias_gyro(0) << "\n"         //
-		//               << "bgy = " << imu_bias_gyro(1) << "\n"         //
-		//               << "bgz = " << imu_bias_gyro(2) << "\n"         //
-		//               << "\n"
-		//               << "bax = " << imu_bias_acc(0) << "\n"          //
-		//               << "bay = " << imu_bias_acc(1) << "\n"          //
-		//               << "baz = " << imu_bias_acc(2) << "\n"          //
-		//               << std::endl;
-
 		// Get the pose returned from SLAM
 		Eigen::Quaternionf quat = Eigen::Quaternionf{w_pose_blkf_rot(0), w_pose_blkf_rot(1), w_pose_blkf_rot(2), w_pose_blkf_rot(3)};
 		Eigen::Quaterniond doub_quat = Eigen::Quaterniond{w_pose_blkf_rot(0), w_pose_blkf_rot(1), w_pose_blkf_rot(2), w_pose_blkf_rot(3)};
@@ -208,7 +172,6 @@ private:
 	const std::shared_ptr<switchboard> sb;
 	std::unique_ptr<writer<pose_type>> _m_pose;
 	std::unique_ptr<writer<imu_integrator_input>> _m_imu_integrator_input;
-	//std::unique_ptr<writer<imu_integrator_input>> _m_imu_integrator_input;
 	time_type _m_begin;
 
 	VIO::FrameId kimera_current_frame_id;
