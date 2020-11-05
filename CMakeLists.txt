@@ -162,6 +162,7 @@ add_executable(stereoVIOEuroc ./examples/KimeraVIO.cpp)
 target_link_libraries(stereoVIOEuroc PUBLIC kimera_vio::kimera_vio)
 
 add_library(plugin SHARED ./examples/plugin.cpp)
+target_include_directories(plugin PRIVATE ./common)
 target_link_libraries(plugin PUBLIC kimera_vio::kimera_vio)
 
 ############################### TESTS ##########################################
