@@ -9,10 +9,10 @@
 
 #include "kimera-vio/pipeline/Pipeline.h"
 
-#include "../common/plugin.hpp"
-#include "../common/switchboard.hpp"
-#include "../common/data_format.hpp"
-#include "../common/phonebook.hpp"
+#include "common/plugin.hpp"
+#include "common/switchboard.hpp"
+#include "common/data_format.hpp"
+#include "common/phonebook.hpp"
 
 using namespace ILLIXR;
 
