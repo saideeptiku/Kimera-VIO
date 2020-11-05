@@ -16,6 +16,16 @@
 
 using namespace ILLIXR;
 
+std::string get_path() {
+    const char* KIMERA_ROOT_c_str = std::getenv("KIMERA_ROOT");
+	if (!KIMERA_ROOT_c_str) {
+		std::cerr << "Please define KIMERA_ROOT" << std::endl;
+		abort();
+	}
+	std::string KIMERA_ROOT = std::string{KIMERA_ROOT_c_str};
+    return KIMERA_ROOT + "params/ILLIXR";
+}
+
 class kimera_vio : public plugin {
 public:
 	/* Provide handles to kimera_vio */
@@ -23,7 +33,7 @@ public:
 		: plugin{name_, pb_}
 		, sb{pb->lookup_impl<switchboard>()}
 		, kimera_current_frame_id(0)
-		, kimera_pipeline_params("../params/ILLIXR")
+		, kimera_pipeline_params(get_path())
 		, kimera_pipeline(kimera_pipeline_params)
     	, _m_pose{sb->publish<pose_type>("slow_pose")}
     	, _m_imu_integrator_input{sb->publish<imu_integrator_input>("imu_integrator_input")}
