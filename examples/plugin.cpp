@@ -23,8 +23,7 @@ public:
 		: plugin{name_, pb_}
 		, sb{pb->lookup_impl<switchboard>()}
 		, kimera_current_frame_id(0)
-		// TODO: get path from runner
-		, kimera_pipeline_params("/home/jeffrey/Research/ILLIXR/Kimera-VIO/params/ILLIXR")
+		, kimera_pipeline_params("../params/ILLIXR")
 		, kimera_pipeline(kimera_pipeline_params)
     	, _m_pose{sb->publish<pose_type>("slow_pose")}
     	, _m_imu_integrator_input{sb->publish<imu_integrator_input>("imu_integrator_input")}
@@ -32,15 +31,14 @@ public:
 		_m_begin = std::chrono::system_clock::now();
 		imu_cam_buffer = NULL;
     
-    // TODO: read Kimera flag file path from runner and find a better way of passing it to gflag
-
-    kimera_pipeline.registerBackendOutputCallback(
-      std::bind(
-        &kimera_vio::pose_callback,
-        this,
-        std::placeholders::_1
-      )
-    );
+		// TODO: read Kimera flag file path from runner and find a better way of passing it to gflag
+		kimera_pipeline.registerBackendOutputCallback(
+		std::bind(
+			&kimera_vio::pose_callback,
+			this,
+			std::placeholders::_1
+		)
+		);
 
 		_m_pose->put(
 			new pose_type{
@@ -53,7 +51,6 @@ public:
 #ifdef CV_HAS_METRICS
 		cv::metrics::setAccount(new std::string{"-1"});
 #endif
-
 	}
 
 
@@ -93,7 +90,10 @@ public:
 		}
 
 #ifdef CV_HAS_METRICS
-		cv::metrics::setAccount(new std::string{std::to_string(itew_pose_blkf_rot
+		cv::metrics::setAccount(new std::string{std::to_string(iteration_no)});
+		iteration_no++;
+		if (iteration_no % 20 == 0) {
+			cv::metrics::dump();
 		}
 #else
 #warning "No OpenCV metrics available. Please recompile OpenCV from git clone --branch 3.4.6-instrumented https://github.com/ILLIXR/opencv/. (see install_deps.sh)"
@@ -101,8 +101,7 @@ public:
 
 		cv::Mat img0{*imu_cam_buffer->img0.value()};
 		cv::Mat img1{*imu_cam_buffer->img1.value()};
-		cv::cvtColor(img0, img0, cv::COLOR_BGR2GRAY);
-		cv::cvtColor(img1, img1, cv::COLOR_BGR2GRAY);
+
 		// VIOParams
 		VIO::CameraParams left_cam_info = kimera_pipeline_params.camera_params_.at(0);
 		VIO::CameraParams right_cam_info = kimera_pipeline_params.camera_params_.at(1);
@@ -114,7 +113,9 @@ public:
 																	right_cam_info, img1));
 
 		kimera_pipeline.spin();
-    std::cout << "SPIN FULL\n";
+#ifndef NDEBUG
+    	std::cout << "SPIN FULL\n";
+#endif
 	}
 
   	void pose_callback(const std::shared_ptr<VIO::BackendOutput>& vio_output) {
