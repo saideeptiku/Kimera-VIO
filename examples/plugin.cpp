@@ -160,13 +160,13 @@ public:
 			.t_offset = -0.05,
 
 			.params = {
-				.gyro_noise = 0.00016968,
-				.acc_noise = 0.002,
-				.gyro_walk = 1.9393e-05,
-				.acc_walk = 0.003,
-				.n_gravity = Eigen::Matrix<double,3,1>(0.0, 0.0, -9.81),
-				.imu_integration_sigma = 1.0,
-				.nominal_rate = 200.0,
+				.gyro_noise = kimera_pipeline_params.imu_params_.gyro_noise_,
+				.acc_noise = kimera_pipeline_params.imu_params_.acc_noise_,
+				.gyro_walk = kimera_pipeline_params.imu_params_.gyro_walk_,
+				.acc_walk = kimera_pipeline_params.imu_params_.acc_walk_,
+				.n_gravity = kimera_pipeline_params.imu_params_.n_gravity_,
+				.imu_integration_sigma = kimera_pipeline_params.imu_params_.imu_integration_sigma_,
+				.nominal_rate = kimera_pipeline_params.imu_params_.nominal_rate_,
 			},
 
 			.biasAcc =imu_bias_acc,
