@@ -51,7 +51,7 @@ public:
         );
 
         pose_type datum_pose_tmp{
-            ILLIXR::time_type{},
+            time_point{},
             Eigen::Vector3f{0, 0, 0},
             Eigen::Quaternionf{1, 0, 0, 0}
         };
@@ -164,37 +164,32 @@ public:
         assert(isfinite(pos[1]));
         assert(isfinite(pos[2]));
 
-        pose_type datum_pose_tmp{
-            imu_cam_buffer->time,
-            pos,
-            quat,
-        };
-        switchboard::ptr<pose_type> datum_pose = _m_pose.allocate<pose_type>(std::move(datum_pose_tmp));
-        _m_pose.put(std::move(datum_pose));
+        _m_pose.put(new pose_type{
+            .sensor_time = imu_cam_buffer->time,
+            .position = pos,
+            .orientation = quat,
+        });
         
-        imu_integrator_input datum_imu_int_tmp{
-            (static_cast<double>(imu_cam_buffer->dataset_time) / NANO_SEC),
-            -0.05,
+        _m_imu_integrator_input.put(new imu_integrator_input{
+            .last_cam_integration_time = (double(imu_cam_buffer->dataset_time) / NANO_SEC),
+            .t_offset = -0.05,
 
-            {
-                kimera_pipeline_params.imu_params_.gyro_noise_,
-                kimera_pipeline_params.imu_params_.acc_noise_,
-                kimera_pipeline_params.imu_params_.gyro_walk_,
-                kimera_pipeline_params.imu_params_.acc_walk_,
-                kimera_pipeline_params.imu_params_.n_gravity_,
-                kimera_pipeline_params.imu_params_.imu_integration_sigma_,
-                kimera_pipeline_params.imu_params_.nominal_rate_,
+            .params = {
+                .gyro_noise = kimera_pipeline_params.imu_params_.gyro_noise_,
+                .acc_noise = kimera_pipeline_params.imu_params_.acc_noise_,
+                .gyro_walk = kimera_pipeline_params.imu_params_.gyro_walk_,
+                .acc_walk = kimera_pipeline_params.imu_params_.acc_walk_,
+                .n_gravity = kimera_pipeline_params.imu_params_.n_gravity_,
+                .imu_integration_sigma = kimera_pipeline_params.imu_params_.imu_integration_sigma_,
+                .nominal_rate = kimera_pipeline_params.imu_params_.nominal_rate_,
             },
 
-            imu_bias_acc,
-            imu_bias_gyro,
-            w_pose_blkf_trans,
-            w_vel_blkf,
-            doub_quat,
-        };
-        switchboard::ptr<imu_integrator_input> datum_imu_int =
-            _m_imu_integrator_input.allocate<imu_integrator_input>(std::move(datum_imu_int_tmp));
-        _m_imu_integrator_input.put(std::move(datum_imu_int));
+            .biasAcc =imu_bias_acc,
+            .biasGyro = imu_bias_gyro,
+            .position = w_pose_blkf_trans,
+            .velocity = w_vel_blkf,
+            .quat = doub_quat,
+        });
     }
 
     virtual ~kimera_vio() override {}
