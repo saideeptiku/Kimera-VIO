@@ -52,9 +52,9 @@ public:
 
         _m_pose.put(
             new pose_type{
-                .sensor_time = std::chrono::time_point<std::chrono::system_clock>{},
-                .position = Eigen::Vector3f{0, 0, 0},
-                .orientation = Eigen::Quaternionf{1, 0, 0, 0}
+                ILLIXR::time_type{},
+                Eigen::Vector3f{0, 0, 0},
+                Eigen::Quaternionf{1, 0, 0, 0}
             }
         );
 
@@ -161,30 +161,30 @@ public:
         assert(isfinite(pos[2]));
 
         _m_pose.put(new pose_type{
-            .sensor_time = imu_cam_buffer->time,
-            .position = pos,
-            .orientation = quat,
+            imu_cam_buffer->time,
+            pos,
+            quat,
         });
         
         _m_imu_integrator_input.put(new imu_integrator_input{
-            .last_cam_integration_time = (double(imu_cam_buffer->dataset_time) / NANO_SEC),
-            .t_offset = -0.05,
+            (static_cast<double>(imu_cam_buffer->dataset_time) / NANO_SEC),
+            -0.05,
 
-            .params = {
-                .gyro_noise = kimera_pipeline_params.imu_params_.gyro_noise_,
-                .acc_noise = kimera_pipeline_params.imu_params_.acc_noise_,
-                .gyro_walk = kimera_pipeline_params.imu_params_.gyro_walk_,
-                .acc_walk = kimera_pipeline_params.imu_params_.acc_walk_,
-                .n_gravity = kimera_pipeline_params.imu_params_.n_gravity_,
-                .imu_integration_sigma = kimera_pipeline_params.imu_params_.imu_integration_sigma_,
-                .nominal_rate = kimera_pipeline_params.imu_params_.nominal_rate_,
+            {
+                kimera_pipeline_params.imu_params_.gyro_noise_,
+                kimera_pipeline_params.imu_params_.acc_noise_,
+                kimera_pipeline_params.imu_params_.gyro_walk_,
+                kimera_pipeline_params.imu_params_.acc_walk_,
+                kimera_pipeline_params.imu_params_.n_gravity_,
+                kimera_pipeline_params.imu_params_.imu_integration_sigma_,
+                kimera_pipeline_params.imu_params_.nominal_rate_,
             },
 
-            .biasAcc =imu_bias_acc,
-            .biasGyro = imu_bias_gyro,
-            .position = w_pose_blkf_trans,
-            .velocity = w_vel_blkf,
-            .quat = doub_quat,
+            imu_bias_acc,
+            imu_bias_gyro,
+            w_pose_blkf_trans,
+            w_vel_blkf,
+            doub_quat,
         });
     }
 
