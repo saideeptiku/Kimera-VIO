@@ -164,13 +164,15 @@ public:
         assert(isfinite(pos[1]));
         assert(isfinite(pos[2]));
 
-        _m_pose.put(new pose_type{
+        pose_type datum_pose_tmp{
             imu_cam_buffer->time,
             pos,
             quat,
-        });
+        };
+        switchboard::ptr<pose_type> datum_pose = _m_pose.allocate<pose_type>(std::move(datum_pose_tmp));
+        _m_pose.put(std::move(datum_pose));
         
-        _m_imu_integrator_input.put(new imu_integrator_input{
+        imu_integrator_input datum_imu_int_tmp{
             (static_cast<double>(imu_cam_buffer->dataset_time) / NANO_SEC),
             -0.05,
 
@@ -189,7 +191,10 @@ public:
             w_pose_blkf_trans,
             w_vel_blkf,
             doub_quat,
-        });
+        };
+        switchboard::ptr<imu_integrator_input> datum_imu_int =
+            _m_imu_integrator_input.allocate<imu_integrator_input>(std::move(datum_imu_int_tmp));
+        _m_imu_integrator_input.put(std::move(datum_imu_int));
     }
 
     virtual ~kimera_vio() override {}
