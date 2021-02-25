@@ -13,14 +13,14 @@
 #include "../common/switchboard.hpp"
 #include "../common/data_format.hpp"
 #include "../common/phonebook.hpp"
+#include "../common/error_util.hpp"
 
 using namespace ILLIXR;
 
 std::string get_path() {
     const char* KIMERA_ROOT_c_str = std::getenv("KIMERA_ROOT");
 	if (!KIMERA_ROOT_c_str) {
-		std::cerr << "Please define KIMERA_ROOT" << std::endl;
-		abort();
+        ILLIXR::abort("Please define KIMERA_ROOT");
 	}
 	std::string KIMERA_ROOT = std::string{KIMERA_ROOT_c_str};
     return KIMERA_ROOT + "params/ILLIXR";
