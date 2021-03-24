@@ -39,8 +39,6 @@ public:
         , _m_imu_integrator_input{sb->get_writer<imu_integrator_input>("imu_integrator_input")}
         , imu_cam_buffer{nullptr}
     {
-        _m_begin = std::chrono::system_clock::now();
-    
         // TODO: read Kimera flag file path from runner and find a better way of passing it to gflag
         kimera_pipeline.registerBackendOutputCallback(
             std::bind(
@@ -50,13 +48,11 @@ public:
             )
         );
 
-        pose_type datum_pose_tmp{
+        _m_pose.put(_m_pose.allocate<pose_type>(pose_type{
             time_point{},
             Eigen::Vector3f{0, 0, 0},
             Eigen::Quaternionf{1, 0, 0, 0}
-        };
-        switchboard::ptr<pose_type> datum_pose = _m_pose.allocate<pose_type>(std::move(datum_pose_tmp));
-        _m_pose.put(std::move(datum_pose));
+        }));
 
 #ifdef CV_HAS_METRICS
         cv::metrics::setAccount(new std::string{"-1"});
@@ -164,19 +160,16 @@ public:
         assert(isfinite(pos[1]));
         assert(isfinite(pos[2]));
 
-        pose_type datum_pose_tmp{
+        _m_pose.put(_m_pose.allocate<pose_type>(pose_type{
             imu_cam_buffer->time,
             pos,
-            quat,
-        };
-        switchboard::ptr<pose_type> datum_pose = _m_pose.allocate<pose_type>(std::move(datum_pose_tmp));
-        _m_pose.put(std::move(datum_pose));
-        
-        imu_integrator_input datum_imu_int_tmp{
-            (static_cast<double>(imu_cam_buffer->dataset_time) / NANO_SEC),
-            -0.05,
+            quat
+        }));
 
-            {
+        _m_imu_integrator_input.put(_m_imu_integrator_input.allocate<imu_integrator_input>(imu_integrator_input{
+			double(imu_cam_buffer->dataset_time) * (1/1000) * (1/1000) * (1/1000),
+			-0.05,
+            imu_params{
                 kimera_pipeline_params.imu_params_.gyro_noise_,
                 kimera_pipeline_params.imu_params_.acc_noise_,
                 kimera_pipeline_params.imu_params_.gyro_walk_,
@@ -185,16 +178,12 @@ public:
                 kimera_pipeline_params.imu_params_.imu_integration_sigma_,
                 kimera_pipeline_params.imu_params_.nominal_rate_,
             },
-
             imu_bias_acc,
             imu_bias_gyro,
             w_pose_blkf_trans,
             w_vel_blkf,
-            doub_quat,
-        };
-        switchboard::ptr<imu_integrator_input> datum_imu_int =
-            _m_imu_integrator_input.allocate<imu_integrator_input>(std::move(datum_imu_int_tmp));
-        _m_imu_integrator_input.put(std::move(datum_imu_int));
+            doub_quat
+        }));
     }
 
     virtual ~kimera_vio() override {}
@@ -203,7 +192,6 @@ private:
     const std::shared_ptr<switchboard> sb;
     switchboard::writer<pose_type> _m_pose;
     switchboard::writer<imu_integrator_input> _m_imu_integrator_input;
-    time_type _m_begin;
 
     VIO::FrameId kimera_current_frame_id;
     VIO::VioParams kimera_pipeline_params;
