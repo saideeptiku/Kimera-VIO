@@ -37,7 +37,7 @@ public:
         , kimera_pipeline(kimera_pipeline_params)
         , _m_pose{sb->get_writer<pose_type>("slow_pose")}
         , _m_imu_integrator_input{sb->get_writer<imu_integrator_input>("imu_integrator_input")}
-        , cam_buffer{nullptr}
+        , cam{nullptr}
         , _m_cam{sb->get_buffered_reader<cam_type>("cam")}
     {
         // TODO: read Kimera flag file path from runner and find a better way of passing it to gflag
@@ -88,15 +88,10 @@ public:
         // assert((datum->img0.has_value() && datum->img1.has_value()) || (!datum->img0.has_value() && !datum->img1.has_value()));
         kimera_pipeline.fillSingleImuQueue(VIO::ImuMeasurement(datum->time.time_since_epoch().count(), imu_raw_vals));
 
-        switchboard::ptr<const cam_type> cam;
 		// Buffered Async:
 		cam = _m_cam.size() == 0 ? nullptr : _m_cam.dequeue();
 		// If there is not cam data this func call, break early
 		if (!cam) {
-			return;
-		}
-		if (!cam_buffer) {
-			cam_buffer = cam;
 			return;
 		}
 
@@ -110,8 +105,8 @@ public:
 #warning "No OpenCV metrics available. Please recompile OpenCV from git clone --branch 3.4.6-instrumented https://github.com/ILLIXR/opencv/. (see install_deps.sh)"
 #endif
 
-        cv::Mat img0{cam_buffer->img0};
-        cv::Mat img1{cam_buffer->img1};
+        cv::Mat img0{cam->img0};
+        cv::Mat img1{cam->img1};
 
         // VIOParams
         VIO::CameraParams left_cam_info = kimera_pipeline_params.camera_params_.at(0);
@@ -131,7 +126,6 @@ public:
 #ifndef NDEBUG
         std::cout << "SPIN FULL\n";
 #endif
-        cam_buffer = cam; 
     }
 
     void pose_callback(const std::shared_ptr<VIO::BackendOutput>& vio_output) {
@@ -166,13 +160,13 @@ public:
         assert(isfinite(pos[2]));
 
         _m_pose.put(_m_pose.allocate<pose_type>(pose_type{
-            cam_buffer->time,
+            cam->time,
             pos,
             quat
         }));
 
         _m_imu_integrator_input.put(_m_imu_integrator_input.allocate<imu_integrator_input>(imu_integrator_input{
-			cam_buffer->time,
+			cam->time,
 			duration(std::chrono::milliseconds{-50}),
             imu_params{
                 kimera_pipeline_params.imu_params_.gyro_noise_,
@@ -202,7 +196,7 @@ private:
     VIO::VioParams kimera_pipeline_params;
     VIO::Pipeline kimera_pipeline;
     
-    switchboard::ptr<const cam_type> cam_buffer;
+    switchboard::ptr<const cam_type> cam;
 	switchboard::buffered_reader<cam_type> _m_cam;
     time_point previous_timestamp = time_point{duration{-1}};
 };
