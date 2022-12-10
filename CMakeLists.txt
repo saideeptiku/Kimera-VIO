@@ -147,7 +147,7 @@ target_include_directories(${PROJECT_NAME}
 
 target_compile_options(${PROJECT_NAME}
   PRIVATE -Wall -pipe
-  PRIVATE -march=native
+  #  PRIVATE -march=native # Temp fix to resolve clang -march=native not supported on Jetson
 )
 
 # We would just need to say cxx_std_11 if we were using cmake 3.8
